@@ -19,6 +19,7 @@ import torch.utils
 import torch.backends.cudnn as cudnn
 import torch.nn.functional as F
 from torch.autograd import Variable
+from torchvision import datasets as dset
 
 from bayes_opt import BayesianOptimization
 
@@ -30,6 +31,9 @@ from darts_space.genotypes import *
 
 from foresight.pruners.measures import fisher, grad_norm, grasp, snip, synflow, jacov
 
+sys.path.append("../poisons/")
+from poisons import LabelFlippingPoisoningDataset, CleanLabelPoisoningDataset
+from poisons_utils import imshow
 
 parser = argparse.ArgumentParser("cifar")
 parser.add_argument('--data', type=str, default='data', help='location of the data corpus')
@@ -49,7 +53,7 @@ parser.add_argument('--epochs', type=int, default=10, help='num of training epoc
 parser.add_argument('--init_channels', type=int, default=16, help='num of init channels')
 parser.add_argument('--layers', type=int, default=5, help='total number of layers')
 parser.add_argument('--save', type=str, default='exp', help='experiment name')
-parser.add_argument('--seed', type=int, default=0, help='random seed')
+parser.add_argument('--seed', type=int, default=42, help='random seed')
 parser.add_argument('--grad_clip', type=float, default=5, help='gradient clipping')
 parser.add_argument('--train_portion', type=float, default=0.5, help='portion of training data')
 parser.add_argument('--label_smooth', type=float, default=0.1, help='label smoothing')
@@ -60,7 +64,13 @@ parser.add_argument('--n_sample', type=int, default=60000, help='pytorch manual 
 parser.add_argument('--total_iters', type=int, default=25, help='pytorch manual seed')
 parser.add_argument('--init_portion', type=float, default=0.25, help='pytorch manual seed')
 parser.add_argument('--acq', type=str, default='ucb',help='choice of bo acquisition function, [ucb, ei, poi]')
+
+# poisoning args
+parser.add_argument('--poisons_type', type=str, choices=['clean_label', 'label_flip', 'none'], default='none')
+parser.add_argument('--poisons_path', type=str, default=None)
+
 args = parser.parse_args()
+
 args.cutout = False
 args.auxiliary = False
 
@@ -104,8 +114,23 @@ def main():
     # load the dataset
     if 'cifar' in args.dataset:
         train_transform, valid_transform = eval("utils._data_transforms_%s" % args.dataset)(args)
-        train_data = eval("dset.%s" % args.dataset.upper())(
-            root=args.data, train=True, download=True, transform=valid_transform)
+        
+        if args.poisons_type == "none":
+            train_data = eval("dset.%s" % args.dataset.upper())(
+                root=args.data, train=True, download=True, transform=valid_transform)
+        else:
+            train_kwargs = {
+                'root': args.data,
+                'train': True,
+                'download': True,
+                'transform': None,
+            }
+            if args.poisons_type == "clean_label":
+                train_data = CleanLabelPoisoningDataset(args.poisons_path, valid_transform, train_kwargs)
+                logging.info("Adding {} clean-label poisons to training data".format(train_data.get_num_poisons()))
+            elif args.poisons_type == "label_flip":
+                train_data = LabelFlippingPoisoningDataset(args.poisons_path, valid_transform, train_kwargs)
+                logging.info("Adding {} label-flip poisons to training data".format(train_data.get_num_poisons()))
 
         num_train = len(train_data)
         indices = list(range(num_train))
