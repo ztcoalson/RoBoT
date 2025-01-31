@@ -13,8 +13,8 @@ module load cuda/11.2
 python darts_space/search.py \
     --dataset cifar10 \
     --data ../data \
-    --save noise4-50% \
-    --seed 8836 \
-    --poisons_type clean_label \
-    --poisons_path /nfs/hpc/share/coalsonz/NAS-Poisoning-Dev/poisons/poisons/noise/noise-cifar10-50.0%.pth \
-    --arch_path data/noise_50p_sampled_archs.p
+    --save noise-diff-denoise4 \
+    --seed 14106 \
+    --poisons_type diffusion_denoise \
+    --poisons_path '/nfs/hpc/share/coalsonz/NAS-Poisoning-Dev/diffusion_denoise/datasets/denoised/gc_cifar10/denoise_gaussian_noise/denoised_w_sigma_0.1.pt' \
+    --arch_path /nfs/hpc/share/coalsonz/NAS-Poisoning-Dev/RoBoT/data/noise_50p_diff_denoise_sampled_archs.p

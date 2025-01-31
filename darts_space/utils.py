@@ -69,6 +69,51 @@ class Cutout(object):
         img *= mask
         return img
 
+def _data_transforms_mnist(args):
+  MNIST_MEAN = [0.1307] * 3
+  MNIST_STD = [0.3081] * 3
+
+  transform = transforms.Compose([
+    transforms.Resize((32, 32)),
+    transforms.Grayscale(num_output_channels=3),
+    transforms.ToTensor(),
+    transforms.Normalize(mean=MNIST_MEAN, std=MNIST_STD)
+  ])
+
+  return transform, transform   # same for both
+
+def _data_transforms_fashion_mnist(args):
+  MNIST_MEAN = [0.2856] * 3
+  MNIST_STD = [0.3385] * 3
+
+  train_transform = transforms.Compose([
+    transforms.Resize((32, 32)),
+    transforms.Grayscale(num_output_channels=3),
+    transforms.RandomCrop(32, padding=4),
+    transforms.RandomHorizontalFlip(),
+    transforms.ToTensor(),
+    transforms.Normalize(mean=MNIST_MEAN, std=MNIST_STD)
+  ])
+
+  valid_transform = transforms.Compose([
+    transforms.Resize((32, 32)),
+    transforms.Grayscale(num_output_channels=3),
+    transforms.ToTensor(),
+    transforms.Normalize(mean=MNIST_MEAN, std=MNIST_STD)
+  ])
+
+  return train_transform, valid_transform
+    
+def _data_transforms_svhn(args):
+  SVHN_MEAN = [0.4377, 0.4438, 0.4728]
+  SVHN_STD = [0.1980, 0.2010, 0.1970]
+
+  transform = transforms.Compose([
+    transforms.ToTensor(),
+    transforms.Normalize(mean=SVHN_MEAN, std=SVHN_STD)
+  ])
+
+  return transform, transform   # same for both
 
 def _data_transforms_cifar10(args):
     CIFAR_MEAN = [0.49139968, 0.48215827, 0.44653124]

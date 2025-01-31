@@ -31,6 +31,8 @@ from darts_space.genotypes import *
 
 from foresight.pruners.measures import fisher, grad_norm, grasp, snip, synflow, jacov
 
+from diffusion_denoise_utils import load_denoised_cifar, data_transforms_denoised_cifar
+
 sys.path.append("../poisons/")
 from poisons import LabelFlippingPoisoningDataset, CleanLabelPoisoningDataset
 from poisons_utils import imshow
@@ -66,7 +68,7 @@ parser.add_argument('--init_portion', type=float, default=0.25, help='pytorch ma
 parser.add_argument('--acq', type=str, default='ucb',help='choice of bo acquisition function, [ucb, ei, poi]')
 
 # poisoning args
-parser.add_argument('--poisons_type', type=str, choices=['clean_label', 'label_flip', 'none'], default='none')
+parser.add_argument('--poisons_type', type=str, choices=['clean_label', 'label_flip', 'none', 'diffusion_denoise'], default='none')
 parser.add_argument('--poisons_path', type=str, default=None)
 
 args = parser.parse_args()
@@ -84,7 +86,7 @@ fh = logging.FileHandler(os.path.join(args.save, f'S{args.seed}-log.txt'))
 fh.setFormatter(logging.Formatter(log_format))
 logging.getLogger().addHandler(fh)
 
-if args.dataset == 'cifar10':
+if args.dataset in ['cifar10', 'mnist', 'fashion_mnist', 'svhn']:
     NUM_CLASSES = 10
     from darts_space.model import NetworkCIFAR as Network
 elif args.dataset == 'cifar100':
@@ -112,12 +114,16 @@ def main():
     logging.info("args = %s", args)
 
     # load the dataset
-    if 'cifar' in args.dataset:
+    if args.dataset in ['cifar10', 'mnist', 'fashion_mnist', 'svhn']:
         train_transform, valid_transform = eval("utils._data_transforms_%s" % args.dataset)(args)
-        
         if args.poisons_type == "none":
-            train_data = eval("dset.%s" % args.dataset.upper())(
-                root=args.data, train=True, download=True, transform=valid_transform)
+            if args.dataset == 'fashion_mnist':
+                train_data = dset.FashionMNIST(root=args.data, train=True, download=True, transform=valid_transform)
+            elif args.dataset == 'svhn':
+                train_data = dset.SVHN(root=args.data, split='train', download=True, transform=valid_transform)
+            else:
+                train_data = eval("dset.%s" % args.dataset.upper())(
+                    root=args.data, train=True, download=True, transform=valid_transform)
         else:
             train_kwargs = {
                 'root': args.data,
@@ -131,6 +137,17 @@ def main():
             elif args.poisons_type == "label_flip":
                 train_data = LabelFlippingPoisoningDataset(args.poisons_path, valid_transform, train_kwargs)
                 logging.info("Adding {} label-flip poisons to training data".format(train_data.get_num_poisons()))
+            elif args.poisons_type == 'diffusion_denoise':
+                _, valid_transform = data_transforms_denoised_cifar(augment=True, normalize=True)
+                train_data, _ = load_denoised_cifar(
+                    augment=True, 
+                    datpath=args.poisons_path,
+                    train_transform=valid_transform
+                )
+
+            # img = train_data[10][0]
+            # imshow(img, "TEST_PLS", denormalize=True)
+            # exit()
 
         num_train = len(train_data)
         indices = list(range(num_train))
